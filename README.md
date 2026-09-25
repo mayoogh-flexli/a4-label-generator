@@ -1,5 +1,8 @@
 # A4 Label Generator
 
+**▶ Use it online: https://mayoogh-flexli.github.io/a4-label-generator/** — nothing to install. It works in
+Chrome or Edge, and nothing leaves your computer.
+
 A single-file tool for making custom-size labels that print on A4 paper. Open `index.html` in Chrome or
 Edge. It needs no install and works offline.
 
