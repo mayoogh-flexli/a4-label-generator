@@ -31,7 +31,9 @@ Edge. It needs no install and works offline.
    - **Ruler scale** along the top and left edges of the sheet (mm from the paper edge). Measure between
      two numbers on a printed sheet to confirm it printed at 100%. While the ruler is on, the page margin
      is at least 12 mm, so labels never cover it.
-   - **Font:** Bahnschrift Condensed only. It's compact and easy to read, and ships with Windows 10/11. **Bold** is on by default.
+   - **Font:** **Bahnschrift Condensed** when the browser can use it. Otherwise it uses **Barlow
+     Condensed**, a free DIN-style condensed font built into the page, so it looks right on any PC, Mac or
+     browser. The sidebar shows which one is active. **Bold** is on by default.
 4. **Output:**
    - **Save as PDF** downloads a vector A4 PDF straight away, for example
      `labels_R01-C1-01_40pcs_40x12mm.pdf`.
@@ -67,5 +69,10 @@ settings. **📂 Open** loads it back so you can keep editing. Keep one file per
 - Settings are stored in the browser on this PC, so a different PC or browser starts with the factory
   settings.
 
-How the PDF draws text: each label's text is drawn in Bahnschrift Condensed at 1200 dpi and embedded as a sharp
+How the PDF draws text: each label's text is drawn in the active font at 1200 dpi and embedded as a sharp
 black-and-white image in the text colour, so the PDF matches the preview. Labels, borders, cut lines and the ruler are vector.
+
+## License notes
+
+The built-in Barlow Condensed font (© The Barlow Project Authors) is used under the SIL Open Font
+License 1.1 — see [FONT-LICENSE-OFL.txt](FONT-LICENSE-OFL.txt).
