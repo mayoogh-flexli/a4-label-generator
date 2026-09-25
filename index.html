@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A4 Label Generator</title>
+<style>
+:root{--panel:#fff;--bg:#f3f4f6;--border:#d1d5db;--dim:#6b7280}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:#111827}
+.app{display:grid;grid-template-columns:330px 1fr;height:100vh}
+.sidebar{background:#fff;border-right:1px solid var(--border);padding:22px;overflow:auto}
+.brand{font-size:20px;font-weight:800;margin-bottom:4px}.sub{font-size:12px;color:var(--dim);margin-bottom:8px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:22px 0 8px;color:var(--dim)}
+h2 .tag{display:inline-block;background:#111827;color:#fff;border-radius:4px;padding:1px 6px;margin-left:4px;letter-spacing:0}
+label{display:block;font-size:12px;font-weight:650;margin:10px 0 5px}
+input,select,button,textarea{font:inherit}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:7px;background:#fff}
+textarea{min-height:110px;resize:vertical;font-family:Consolas,monospace;font-size:13px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.check{display:flex;align-items:center;gap:8px;margin:12px 0 4px;font-size:12px}.check input{width:auto;margin:0}
+.tabs{display:grid;grid-template-columns:1fr 1fr;background:#e5e7eb;border-radius:8px;padding:3px;gap:3px}
+.tabs button{background:transparent;color:var(--dim);padding:7px}
+.tabs button.on{background:#fff;color:#111827;box-shadow:0 1px 3px #0002}
+button{border:0;border-radius:7px;padding:10px 12px;cursor:pointer;font-weight:700}
+.primary{background:#111827;color:#fff;width:100%}.secondary{background:#e5e7eb;color:#111827}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.actions.three{grid-template-columns:1fr 1fr 1fr}
+.actions.three button{padding:9px 6px;font-size:12px}
+.swatch{height:38px;padding:3px 4px;cursor:pointer}
+.presets{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+.presets button{padding:4px 7px;font-size:11px;border:1px solid #cbd5e1;border-radius:5px}
+.linkbtn{background:none;padding:0;font-weight:600;color:#2563eb;font-size:11px;text-decoration:underline}
+.linkbtn.danger{color:#b91c1c}
+.note{font-size:11px;color:var(--dim);line-height:1.5;margin-top:8px}
+.warn{color:#b91c1c}
+
+/* size groups */
+.groups{display:flex;flex-direction:column;gap:6px}
+.gbtn{display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:8px;text-align:left;background:#f3f4f6;
+      border:1px solid #e5e7eb;padding:7px 9px;font-weight:600;font-size:12px;color:#111827}
+.gbtn .sw{width:26px;height:18px;border-radius:4px;border:1px solid #0003;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.gbtn .meta{color:var(--dim);font-weight:500;font-size:11px}
+.gbtn.on{background:#fff;border-color:#111827;box-shadow:0 1px 4px #0002}
+.gbtn.bad .meta{color:#b91c1c}
+.gtools{display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px}
+.gtools .secondary{padding:7px 10px;font-size:12px}
+.gmove{display:flex;gap:4px}
+.gmove button{padding:5px 8px;font-size:11px}
+.editing{border-left:3px solid #111827;padding-left:12px;margin-left:-15px}
+
+.workspace{overflow:auto;padding:22px 26px}
+.toolbar{display:flex;align-items:center;justify-content:space-between;margin:-22px -26px 16px;padding:14px 26px 10px;gap:12px;
+         position:sticky;top:-22px;left:0;z-index:2;background:var(--bg)}   /* zoom controls stay visible while scrolling */
+.toolbar h1{font-size:18px;margin:0}.status{font-size:12px;color:var(--dim);margin-top:3px}
+.zoom{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--dim)}
+.zoom button{padding:6px 11px}
+#zVal{min-width:42px;text-align:center}
+.pages{cursor:grab}.pages.panning{cursor:grabbing;user-select:none}
+.pages{display:flex;flex-direction:column;align-items:flex-start;gap:24px}
+.pages svg{background:#fff;box-shadow:0 8px 30px #0002;display:block;margin:0 auto;flex:none}  /* auto margins centre it without pushing the left edge out of reach when zoomed in */
+#print{display:none}
+@page{size:A4 portrait;margin:0}
+@media(max-width:850px){.app{grid-template-columns:1fr;height:auto}.sidebar{border-right:0;border-bottom:1px solid var(--border)}}
+@media print{
+  body{background:#fff}
+  .app{display:none!important}
+  #print{display:block}
+  #print svg{display:block;break-after:page}
+  #print svg:last-child{break-after:auto}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="brand">A4 Label Generator</div>
+  <div class="sub">Custom-size labels on A4 paper</div>
+  <div class="actions three" style="margin-top:14px">
+    <button class="secondary" id="newProj" title="Start a new, empty project">📄 New</button>
+    <button class="secondary" id="openProj" title="Open a saved label project (Ctrl+O)">📂 Open</button>
+    <button class="secondary" id="saveProj" title="Save everything to an editable project file (Ctrl+S)">💾 Save</button>
+  </div>
+  <div class="note" id="projectNote"></div>
+
+  <h2>Label sizes on this sheet</h2>
+  <div class="groups" id="groups"></div>
+  <div class="gtools">
+    <button class="secondary" id="addGroup" title="Add another label size to the same sheet">+ Add size</button>
+    <div class="gmove">
+      <button class="secondary" id="moveUp" title="Place this size earlier on the sheet">▲</button>
+      <button class="secondary" id="moveDown" title="Place this size later on the sheet">▼</button>
+      <button class="secondary" id="delGroup" title="Remove this size" style="color:#b91c1c">✕</button>
+    </div>
+  </div>
+
+  <div class="editing">
+    <h2>Text <span class="tag" id="tag1">A</span></h2>
+    <div class="tabs" id="modeTabs">
+      <button data-mode="list" class="on">Type a list</button>
+      <button data-mode="seq">Numbered</button>
+    </div>
+
+    <div id="seqBox" style="display:none">
+      <label>Prefixes (comma separated)</label>
+      <input id="prefixes" value="R01-C1, R01-C2">
+      <div class="grid2">
+        <div><label>Start number</label><input id="start" type="number" value="1" min="0"></div>
+        <div><label>End number</label><input id="end" type="number" value="20" min="0"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Separator</label><input id="separator" value="-"></div>
+        <div><label>Digits</label><input id="padding" type="number" value="2" min="1" max="6"></div>
+      </div>
+      <div class="note" id="seqExample"></div>
+    </div>
+
+    <div id="listBox">
+      <label>One label per line</label>
+      <textarea id="list" spellcheck="false">MOTOR DRIVER
+BATTERY 24V
+ESTOP
+MCU</textarea>
+    </div>
+    <label>Copies of each</label><input id="copies" type="number" value="1" min="1">
+
+    <h2>Size &amp; style <span class="tag" id="tag2">A</span></h2>
+    <div class="grid2">
+      <div><label>Width X (mm)</label><input id="w" type="number" value="40" min="3" step="0.5"></div>
+      <div><label>Height Y (mm)</label><input id="h" type="number" value="12" min="3" step="0.5"></div>
+    </div>
+    <label>Font size (pt)</label><input id="fontSize" type="number" value="14" min="3" step="0.5">
+    <div class="grid2">
+      <div><label>Label colour</label><input id="bgColor" type="color" value="#ffffff" class="swatch"></div>
+      <div><label>Text &amp; border colour</label><input id="textColor" type="color" value="#000000" class="swatch"></div>
+    </div>
+    <div class="presets" id="colorPresets" title="Quick colour combinations">
+      <button data-bg="#ffffff" data-fg="#000000" style="background:#fff;color:#000">Aa</button>
+      <button data-bg="#000000" data-fg="#ffffff" style="background:#000;color:#fff">Aa</button>
+      <button data-bg="#facc15" data-fg="#000000" style="background:#facc15;color:#000">Aa</button>
+      <button data-bg="#dc2626" data-fg="#ffffff" style="background:#dc2626;color:#fff">Aa</button>
+      <button data-bg="#2563eb" data-fg="#ffffff" style="background:#2563eb;color:#fff">Aa</button>
+      <button data-bg="#16a34a" data-fg="#ffffff" style="background:#16a34a;color:#fff">Aa</button>
+      <button data-bg="#f97316" data-fg="#000000" style="background:#f97316;color:#000">Aa</button>
+    </div>
+  </div>
+
+  <h2>Sheet (all sizes)</h2>
+  <div class="grid2">
+    <div><label>Gap between (mm)</label><input id="gap" type="number" value="2" min="0" step="0.5"></div>
+    <div><label>Page margin (mm)</label><input id="margin" type="number" value="8" min="0" step="0.5"></div>
+  </div>
+  <label>Skip first (already used)</label><input id="skip" type="number" value="0" min="0" title="Leave the first N places of the first size empty, to reuse a partly used sheet">
+
+  <h2>Appearance (all sizes)</h2>
+  <div class="note">Font: <b>Bahnschrift Condensed</b></div>
+  <div class="note warn" id="fontNote"></div>
+  <label class="check"><input id="bold" type="checkbox" checked> Bold</label>
+  <label class="check"><input id="fit" type="checkbox" checked> Shrink text to fit small labels</label>
+  <div class="grid2">
+    <div><label>Border thickness (mm)</label><input id="border" type="number" value="0.3" min="0" step="0.1" title="0 = no border"></div>
+    <div><label>Corner radius (mm)</label><input id="radius" type="number" value="0" min="0" step="0.5"></div>
+  </div>
+  <label class="check"><input id="cut" type="checkbox" checked> Dotted cutting lines</label>
+  <label class="check"><input id="ruler" type="checkbox" checked> Ruler scale on sheet edges (mm)</label>
+
+  <div class="actions" style="margin-top:18px">
+    <button class="primary" id="pdf">Save as PDF</button>
+    <button class="primary" id="print">Print</button>
+  </div>
+  <div class="actions">
+    <button class="secondary" id="saveDefault" title="Use the current settings every time the page opens and when you press Reset">Save as default</button>
+    <button class="secondary" id="reset" title="Go back to your saved default">Reset to default</button>
+  </div>
+  <div class="note" id="defaultNote"></div>
+  <div class="note">Print at <b>100% / Actual size</b> and turn off “Fit to page”, otherwise the labels will not be the size you set. If colours are missing in print, tick “Background graphics” in the print dialog.</div>
+</aside>
+
+<main class="workspace">
+  <div class="toolbar">
+    <div><h1>Print Preview</h1><div class="status" id="status"></div></div>
+    <div class="zoom" title="Ctrl + mouse wheel over the sheet zooms · drag the sheet to move around"><button class="secondary" id="zOut">−</button><span id="zVal"></span><button class="secondary" id="zIn">+</button><button class="secondary" id="zReset" title="Fit the sheet to the window width">Reset</button></div>
+  </div>
+  <div class="pages" id="pages"></div>
+</main>
+</div>
+<div id="print"></div>
+
+<script>
+const PAGE_W = 210, PAGE_H = 297, PT = 25.4/72;   // A4 in mm; 1 pt in mm
+const KEY = 'a4-label-settings-v3', DEFAULT_KEY = 'a4-label-default-v3';
+const FONT = 'Bahnschrift Condensed';   // the only font — compact and readable on small labels
+const BASELINE = 0.35;   // baseline sits 0.35 × font size below the label centre → capitals look centred
+// per-size ("group") fields vs. fields shared by the whole sheet
+const GROUP_IDS  = ['prefixes','start','end','separator','padding','list','copies','w','h','fontSize','bgColor','textColor'];
+const GLOBAL_IDS = ['gap','margin','skip','bold','fit','border','radius','cut','ruler'];
+const $ = id => document.getElementById(id);
+const val = id => $(id).type==='checkbox' ? $(id).checked : $(id).value;
+const setVal = (id, v) => { if(v===undefined) return; if($(id).type==='checkbox') $(id).checked = v; else $(id).value = v; };
+const letter = i => String.fromCharCode(65 + i);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const numOf = (v, min=0) => Math.max(min, parseFloat(v) || 0);
+const num = (id, min=0) => numOf($(id).value, min);
+
+let groups = [], active = 0, zoom = 0.9;
+const ZOOM_MIN = 0.25, ZOOM_MAX = 5, PX_PER_MM = 3.78;
+const FACTORY = {...Object.fromEntries(GLOBAL_IDS.map(id => [id, val(id)])), groups:[{...Object.fromEntries(GROUP_IDS.map(id => [id, val(id)])), mode:'list'}], active:0};
+const readSettings = () => ({...Object.fromEntries(GLOBAL_IDS.map(id => [id, val(id)])), groups: JSON.parse(JSON.stringify(groups)), active});
+
+/* ---------- settings: autosave, saved default, factory ---------- */
+const getJson = k => { try{ return JSON.parse(localStorage.getItem(k) || 'null'); }catch(e){ return null; } };
+const setJson = (k,v) => { try{ v==null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } };
+function upgrade(s){            // settings saved before multi-size support → one group
+  if(!s || s.groups) return s;
+  return {...s, groups:[{...Object.fromEntries(GROUP_IDS.map(id => [id, s[id]])), mode: s.mode || 'seq'}], active:0};
+}
+function apply(s){
+  if(!s) return;
+  GLOBAL_IDS.forEach(id => setVal(id, s[id]));
+  groups = (s.groups && s.groups.length ? s.groups : FACTORY.groups).map(g => ({...FACTORY.groups[0], ...g}));
+  active = Math.min(s.active || 0, groups.length-1);
+  loadGroupToForm();
+}
+function loadGroupToForm(){
+  const g = groups[active];
+  GROUP_IDS.forEach(id => setVal(id, g[id]));
+  setMode(g.mode);
+  $('tag1').textContent = $('tag2').textContent = letter(active);
+}
+function setMode(m){
+  groups[active].mode = m;
+  document.querySelectorAll('#modeTabs button').forEach(b => b.classList.toggle('on', b.dataset.mode===m));
+  $('seqBox').style.display = m==='seq' ? '' : 'none';
+  $('listBox').style.display = m==='list' ? '' : 'none';
+}
+function updateDefaultNote(){
+  $('defaultNote').innerHTML = getJson(DEFAULT_KEY)
+    ? 'Using your saved default. <button class="linkbtn" id="factory">Restore factory settings</button>'
+    : 'No saved default yet — Reset uses the factory settings.';
+}
+
+/* ---------- label texts for one size group ---------- */
+function textsOf(g){
+  let base = [];
+  if(g.mode==='seq'){
+    const start = Math.floor(numOf(g.start)), end = Math.floor(numOf(g.end)), pad = Math.floor(numOf(g.padding,1));
+    for(const p of String(g.prefixes).split(',').map(p => p.trim())){
+      if(end - start > 5000) break;
+      for(let n=start; n<=end; n++) base.push((p ? p + g.separator : '') + String(n).padStart(pad,'0'));
+    }
+  } else base = String(g.list).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const copies = Math.floor(numOf(g.copies,1)), out = [];
+  base.forEach(t => { for(let i=0;i<copies;i++) out.push(t); });
+  return out;
+}
+
+/* ---------- layout: rows ("shelves") filled size by size, top to bottom ----------
+   Each size starts on a new row, so every row boundary is a straight full-width cut. */
+function layout(){
+  const gap = num('gap');
+  const m = $('ruler').checked ? Math.max(num('margin'), RULER.clear) : num('margin');   // keep labels off the ruler
+  const pages = [], info = [];
+  let page = null, y = Infinity, total = 0;
+  const newPage = () => { page = {items:[], rows:[]}; pages.push(page); y = m; };
+  groups.forEach((g, gi) => {
+    const w = numOf(g.w,1), h = numOf(g.h,1), list = textsOf(g);
+    const cols = Math.max(0, Math.floor((PAGE_W - 2*m + gap) / (w + gap)));
+    const fitsH = h <= PAGE_H - 2*m;
+    info.push({gi, w, h, count:list.length, cols, ok: cols>0 && fitsH});
+    if(!cols || !fitsH || !list.length) return;
+    const slots = gi===0 ? [...Array(Math.min(Math.floor(num('skip')), 999)).fill(null), ...list] : list;
+    const gridW = cols*w + (cols-1)*gap, x0 = (PAGE_W - gridW)/2;
+    for(let i=0; i<slots.length; i+=cols){
+      if(y + h > PAGE_H - m + 1e-6) newPage();
+      const row = slots.slice(i, i+cols);
+      page.rows.push({y, h, x0, w, cols});
+      row.forEach((t, c) => page.items.push({t, gi, x: x0 + c*(w+gap), y, w, h}));
+      y += h + gap;
+    }
+    total += list.length;
+  });
+  return {pages: pages.filter(p => p.items.some(it => it.t!==null)), info, total, gap};
+}
+
+/* ---------- text measuring ---------- */
+const ctx = document.createElement('canvas').getContext('2d');
+function textWidthIn(t, sizeMm, family, bold){   // width in mm
+  ctx.font = `${bold ? 700 : 400} 100px "${family}"`;
+  return ctx.measureText(t).width / 100 * sizeMm;
+}
+const textWidth = (t, sizeMm) => textWidthIn(t, sizeMm, FONT, $('bold').checked);
+function fontInstalled(family){
+  const probe = 'R01-C1-01 MOTOR IL1 O0';
+  ctx.font = '400 100px "zz-no-such-font"'; const fb = ctx.measureText(probe).width;
+  ctx.font = `400 100px "${family}", "zz-no-such-font"`;
+  return Math.abs(ctx.measureText(probe).width - fb) > 0.01;
+}
+
+/* ---------- ruler scale along the top and left sheet edges ----------
+   Base line sits 5 mm in from the paper edge (inside most printers' unprintable border);
+   ticks every 1 mm, longer at 5 and 10 mm, numbers = distance from the paper edge in mm. */
+const RULER = {base:5, clear:12, color:'#333333', width:0.12, num:1.9};
+function rulerShapes(){
+  const B = RULER.base, segs = [], out = [];
+  const len = v => v%10===0 ? 3 : v%5===0 ? 2 : 1.2;
+  segs.push([B, B, PAGE_W-B, B], [B, B, B, PAGE_H-B]);
+  for(let x=B; x<=PAGE_W-B; x++) segs.push([x, B, x, B+len(x)]);
+  for(let y=B; y<=PAGE_H-B; y++) segs.push([B, y, B+len(y), y]);
+  out.push({k:'segs', segs, color:RULER.color, w:RULER.width});
+  for(let x=10; x<=PAGE_W-B-3; x+=10) out.push({k:'rtext', t:String(x), x, y:B+3.2+RULER.num*0.72, anchor:'middle'});
+  for(let y=20; y<=PAGE_H-B-3; y+=10) out.push({k:'rtext', t:String(y), x:B+3.5, y:y+RULER.num*0.36, anchor:'start'});   // from 20: clear of the top ruler's 10
+  out.push({k:'rtext', t:'mm', x:B+1, y:B-1.2, anchor:'start'});
+  return out;
+}
+
+/* ---------- one page → list of shapes (shared by preview, print and PDF) ---------- */
+const CUT = {color:'#555555', width:0.2, dash:[0.6, 0.9]};
+function pageShapes(page, gap){
+  const b = num('border'), r = num('radius'), bold = $('bold').checked;
+  const pad = Math.max(0.6, b + 0.4);
+  const out = $('ruler').checked ? rulerShapes() : [];
+  for(const it of page.items){
+    if(it.t===null) continue;                   // skipped (already used) place
+    const g = groups[it.gi], bg = g.bgColor, fg = g.textColor;
+    if(bg.toLowerCase() !== '#ffffff') out.push({k:'rect', x:it.x, y:it.y, w:it.w, h:it.h, r, fill:bg});
+    if(b > 0) out.push({k:'rect', x:it.x+b/2, y:it.y+b/2, w:it.w-b, h:it.h-b, r:Math.max(0,r-b/2), stroke:fg, sw:b});
+    let size = numOf(g.fontSize,1)*PT;
+    if($('fit').checked){
+      const tw = textWidth(it.t, size), maxW = it.w - 2*pad;
+      if(tw > maxW) size *= maxW / tw;
+      size = Math.min(size, (it.h - 2*pad) / 0.95);
+    }
+    out.push({k:'text', t:it.t, cx:it.x+it.w/2, y:it.y+it.h/2+size*BASELINE, size, fill:fg, bold, width:textWidth(it.t, size)});
+  }
+  // dotted cutting lines: full-width cuts between rows, then the column cuts inside each row's strip
+  if($('cut').checked && page.rows.length){
+    const s0 = $('ruler').checked ? RULER.base + 6.5 : 0;     // stop short of the ruler numbers
+    const hy = new Set();
+    for(const row of page.rows){ hy.add(+(row.y - gap/2).toFixed(3)); hy.add(+(row.y + row.h + gap/2).toFixed(3)); }
+    hy.forEach(y => out.push({k:'cut', x1:s0, y1:y, x2:PAGE_W, y2:y}));
+    for(const row of page.rows)
+      for(let c=0;c<=row.cols;c++){ const x = row.x0 + c*(row.w+gap) - gap/2; out.push({k:'cut', x1:x, y1:row.y-gap/2, x2:x, y2:row.y+row.h+gap/2}); }
+  }
+  return out;
+}
+
+/* ---------- SVG (preview + browser print) ---------- */
+function pageSvg(shapes, forPrint){
+  const size = forPrint ? `width="${PAGE_W}mm" height="${PAGE_H}mm"` : `width="${PAGE_W*PX_PER_MM*zoom}" height="${PAGE_H*PX_PER_MM*zoom}"`;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" ${size} viewBox="0 0 ${PAGE_W} ${PAGE_H}"><rect width="${PAGE_W}" height="${PAGE_H}" fill="#fff"/>`;
+  const fam = esc(FONT);
+  for(const o of shapes){
+    if(o.k==='rect') s += `<rect x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" rx="${o.r}" fill="${o.fill||'none'}"${o.stroke?` stroke="${o.stroke}" stroke-width="${o.sw}"`:''}/>`;
+    else if(o.k==='cut') s += `<line x1="${o.x1}" y1="${o.y1}" x2="${o.x2}" y2="${o.y2}" stroke="${CUT.color}" stroke-width="${CUT.width}" stroke-dasharray="${CUT.dash.join(' ')}"/>`;
+    else if(o.k==='segs') s += `<path d="${o.segs.map(q=>`M${q[0]} ${q[1]}L${q[2]} ${q[3]}`).join('')}" stroke="${o.color}" stroke-width="${o.w}" fill="none"/>`;
+    else if(o.k==='rtext') s += `<text x="${o.x}" y="${o.y}" font-family="Arial" font-size="${RULER.num}" fill="${RULER.color}" text-anchor="${o.anchor}">${o.t}</text>`;
+    else s += `<text x="${o.cx}" y="${o.y.toFixed(3)}" font-family="${fam}" font-size="${o.size.toFixed(3)}" font-weight="${o.bold?700:400}" fill="${o.fill}" text-anchor="middle">${esc(o.t)}</text>`;
+  }
+  return s + '</svg>';
+}
+
+/* ---------- PDF (direct download, no libraries) ----------
+   Shapes, borders, cut lines and the ruler are vector.
+   Label text is drawn by the browser in Bahnschrift Condensed at 1200 dpi and embedded as a 1-bit
+   mask filled with the text colour, so the PDF looks exactly like the preview. */
+const MASK_DPI = 1200;
+async function deflate(u8){
+  const s = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate'));   // zlib = PDF FlateDecode
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+async function textMask(t, sizeMm, family, bold){
+  const pxmm = MASK_DPI/25.4, font = `${bold?700:400} ${sizeMm*pxmm}px "${family}"`;
+  const c = document.createElement('canvas'), g = c.getContext('2d');
+  g.font = font; const m = g.measureText(t);
+  const left = Math.ceil(m.actualBoundingBoxLeft)+2, asc = Math.ceil(m.actualBoundingBoxAscent)+2;
+  const w = Math.max(1, left + Math.ceil(m.actualBoundingBoxRight)+2), h = Math.max(1, asc + Math.ceil(m.actualBoundingBoxDescent)+2);
+  c.width = w; c.height = h;
+  g.font = font; g.fillStyle = '#000'; g.fillText(t, left, asc);
+  const px = g.getImageData(0,0,w,h).data, row = Math.ceil(w/8), bits = new Uint8Array(row*h).fill(255);
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(px[(y*w+x)*4+3] >= 128) bits[y*row+(x>>3)] &= ~(0x80>>(x&7));  // 0 = ink
+  return {w, h, data: await deflate(bits), leftMm:left/pxmm, ascMm:asc/pxmm, wMm:w/pxmm, hMm:h/pxmm};
+}
+async function buildPdf(L){
+  const K = 72/25.4, f = n => (+n).toFixed(3).replace(/\.?0+$/,'') || '0';
+  const X = mm => f(mm*K), Y = mm => f((PAGE_H-mm)*K);
+  const rgb = hex => { const n = parseInt(hex.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255].map(v=>f(v/255)).join(' '); };
+  const bold = $('bold').checked;
+  const WIN = {'€':128,'‚':130,'„':132,'…':133,'•':149,'–':150,'—':151,'‘':145,'’':146,'“':147,'”':148,'™':153};
+  const pdfStr = t => '(' + [...t].map(ch => {
+    let c = WIN[ch] || ch.charCodeAt(0); if(c > 255) c = 63;   // not in WinAnsi → '?'
+    if(ch==='(' || ch===')' || ch==='\\') return '\\'+ch;
+    return c < 32 || c > 126 ? '\\' + c.toString(8).padStart(3,'0') : ch;
+  }).join('') + ')';
+  const path = (x,y,w,h,r) => {                                  // (rounded) rectangle path in mm
+    if(r <= 0) return `${X(x)} ${Y(y+h)} ${f(w*K)} ${f(h*K)} re`;
+    r = Math.min(r, w/2, h/2); const c = r*0.4477;             // 1 - 0.5523 bezier handle
+    return [`${X(x+r)} ${Y(y)} m`, `${X(x+w-r)} ${Y(y)} l`, `${X(x+w-c)} ${Y(y)} ${X(x+w)} ${Y(y+c)} ${X(x+w)} ${Y(y+r)} c`,
+      `${X(x+w)} ${Y(y+h-r)} l`, `${X(x+w)} ${Y(y+h-c)} ${X(x+w-c)} ${Y(y+h)} ${X(x+w-r)} ${Y(y+h)} c`,
+      `${X(x+r)} ${Y(y+h)} l`, `${X(x+c)} ${Y(y+h)} ${X(x)} ${Y(y+h-c)} ${X(x)} ${Y(y+h-r)} c`,
+      `${X(x)} ${Y(y+r)} l`, `${X(x)} ${Y(y+c)} ${X(x+c)} ${Y(y)} ${X(x+r)} ${Y(y)} c`, 'h'].join('\n');
+  };
+
+  const masks = new Map();        // "text|size" → {name, ...mask}; identical labels share one image
+  const streams = [];
+  for(const page of L.pages){
+    const ops = [];
+    for(const o of pageShapes(page, L.gap)){
+      if(o.k==='rect'){
+        if(o.fill) ops.push(`${rgb(o.fill)} rg`, path(o.x,o.y,o.w,o.h,o.r), 'f');
+        if(o.stroke) ops.push(`${rgb(o.stroke)} RG ${f(o.sw*K)} w [] 0 d`, path(o.x,o.y,o.w,o.h,o.r), 'S');
+      } else if(o.k==='cut'){
+        ops.push(`${rgb(CUT.color)} RG ${f(CUT.width*K)} w [${CUT.dash.map(d=>f(d*K)).join(' ')}] 0 d`, `${X(o.x1)} ${Y(o.y1)} m ${X(o.x2)} ${Y(o.y2)} l S`);
+      } else if(o.k==='segs'){
+        ops.push(`${rgb(o.color)} RG ${f(o.w*K)} w [] 0 d`, o.segs.map(q => `${X(q[0])} ${Y(q[1])} m ${X(q[2])} ${Y(q[3])} l`).join('\n'), 'S');
+      } else if(o.k==='rtext'){
+        const wd = o.anchor==='middle' ? textWidthIn(o.t, RULER.num, 'Arial', false)/2 : 0;
+        ops.push(`BT /F2 ${f(RULER.num*K)} Tf 100 Tz ${rgb(RULER.color)} rg ${X(o.x - wd)} ${Y(o.y)} Td ${pdfStr(o.t)} Tj ET`);
+      } else {
+        const key = o.t + '|' + o.size.toFixed(4);
+        let m = masks.get(key);
+        if(!m){ m = {name:'Im'+(masks.size+1), ...(await textMask(o.t, o.size, FONT, bold))}; masks.set(key, m); }
+        const left = o.cx - o.width/2 - m.leftMm, top = o.y - m.ascMm;
+        ops.push(`q ${rgb(o.fill)} rg ${f(m.wMm*K)} 0 0 ${f(m.hMm*K)} ${X(left)} ${Y(top + m.hMm)} cm /${m.name} Do Q`);
+      }
+    }
+    streams.push(ops.join('\n'));
+  }
+
+  // ---- assemble (binary-safe) ----
+  const enc = new TextEncoder(), parts = [], offs = [];
+  let size = 0, next = 5;
+  const put = x => { const u = typeof x === 'string' ? enc.encode(x) : x; parts.push(u); size += u.length; };
+  const maskList = [...masks.values()]; maskList.forEach(m => m.obj = next++);
+  const pageObjs = streams.map(() => ({page: next++, content: next++}));
+  const nObj = next - 1;
+  const obj = (n, body) => { offs[n] = size; put(`${n} 0 obj\n`); (Array.isArray(body) ? body : [body]).forEach(put); put('\nendobj\n'); };
+
+  put('%PDF-1.4\n'); put(new Uint8Array([37, 226, 227, 207, 211, 10]));      // binary marker comment
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, `<< /Type /Pages /Kids [${pageObjs.map(p => p.page+' 0 R').join(' ')}] /Count ${pageObjs.length} >>`);
+  obj(3, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');   // ruler numbers
+  obj(4, `<< /Font << /F2 3 0 R >> /XObject << ${maskList.map(m => `/${m.name} ${m.obj} 0 R`).join(' ')} >> >>`);
+  for(const m of maskList)
+    obj(m.obj, [`<< /Type /XObject /Subtype /Image /Width ${m.w} /Height ${m.h} /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Length ${m.data.length} >>\nstream\n`, m.data, '\nendstream']);
+  for(let i=0;i<pageObjs.length;i++){
+    const p = pageObjs[i];
+    obj(p.page, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(PAGE_W*K)} ${f(PAGE_H*K)}] /Resources 4 0 R /Contents ${p.content} 0 R >>`);
+    const st = await deflate(enc.encode(streams[i]));
+    obj(p.content, [`<< /Length ${st.length} /Filter /FlateDecode >>\nstream\n`, st, '\nendstream']);
+  }
+  const xref = size;
+  put(`xref\n0 ${nObj+1}\n0000000000 65535 f \n` + offs.slice(1).map(o => String(o).padStart(10,'0') + ' 00000 n \n').join(''));
+  put(`trailer\n<< /Size ${nObj+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(parts, {type:'application/pdf'});
+}
+async function savePdf(){
+  const L = layout();
+  if(!L.pages.length){ alert('No labels to save.'); return; }
+  const btn = $('pdf'), label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Creating PDF…';
+  try{
+    const blob = await buildPdf(L);
+    const firstText = L.pages[0].items.find(it => it.t!==null).t;
+    const sizes = [...new Set(L.info.filter(i => i.count && i.ok).map(i => `${i.w}x${i.h}`))].join('+');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `labels_${firstText.replace(/[^\w.-]+/g,'_')}_${L.total}pcs_${sizes}mm.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  }catch(e){ alert('Could not create the PDF: ' + e.message + '\nUse Print → "Save as PDF" instead.'); }
+  finally{ btn.disabled = false; btn.textContent = label; }
+}
+
+/* ---------- size group list ---------- */
+function renderGroups(L){
+  $('groups').innerHTML = groups.map((g, i) => {
+    const inf = L.info[i];
+    const meta = !inf.ok ? 'too big for A4' : `${inf.count} pcs · ${inf.cols}/row`;
+    return `<button class="gbtn${i===active?' on':''}${inf.ok?'':' bad'}" data-i="${i}">
+      <span class="sw" style="background:${g.bgColor};color:${g.textColor}">${letter(i)}</span>
+      <span>${numOf(g.w,1)} × ${numOf(g.h,1)} mm</span><span class="meta">${meta}</span></button>`;
+  }).join('');
+  $('delGroup').disabled = groups.length < 2;
+  $('moveUp').disabled = active === 0;
+  $('moveDown').disabled = active === groups.length-1;
+  [$('delGroup'), $('moveUp'), $('moveDown')].forEach(b => b.style.opacity = b.disabled ? .4 : 1);
+}
+
+/* ---------- preview ---------- */
+function render(){
+  const L = layout();
+  $('pages').innerHTML = L.pages.length ? L.pages.map(p => pageSvg(pageShapes(p, L.gap), false)).join('')
+    : '<div class="note" style="margin:60px auto;font-size:13px">No labels yet — type your label texts on the left, one per line.</div>';
+  $('zVal').textContent = Math.round(zoom*100) + '%';
+  renderGroups(L);
+  const bad = L.info.filter(i => !i.ok).map(i => letter(i.gi));
+  $('status').innerHTML = `${L.total} labels • ${L.pages.length} sheet${L.pages.length===1?'':'s'}`
+    + (groups.length > 1 ? ` • ${groups.length} sizes` : ` • ${L.info[0].cols} per row`)
+    + ($('ruler').checked && num('margin') < RULER.clear ? ` • margin raised to ${RULER.clear} mm to clear the ruler` : '')
+    + (bad.length ? ` • <span class="warn">size ${bad.join(', ')} is too big for A4 with these margins</span>` : '');
+  const g = groups[active], p = String(g.prefixes).split(',')[0].trim();
+  $('seqExample').textContent = 'Example: ' + (p ? p + g.separator : '') + String(Math.floor(numOf(g.start))).padStart(Math.floor(numOf(g.padding,1)),'0');
+  $('fontNote').textContent = fontInstalled(FONT) ? '' : `${FONT} is not installed on this PC (it comes with Windows 10/11) — a fallback font is being used.`;
+  setJson(KEY, readSettings());
+  updateProjectNote();
+}
+
+/* ---------- events ---------- */
+GROUP_IDS.forEach(id => $(id).addEventListener('input', () => { groups[active][id] = val(id); render(); }));
+GLOBAL_IDS.forEach(id => $(id).addEventListener('input', render));
+$('modeTabs').addEventListener('click', e => { const b = e.target.closest('button'); if(b){ setMode(b.dataset.mode); render(); } });
+$('colorPresets').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  $('bgColor').value = groups[active].bgColor = b.dataset.bg;
+  $('textColor').value = groups[active].textColor = b.dataset.fg;
+  render();
+});
+$('groups').addEventListener('click', e => {
+  const b = e.target.closest('.gbtn'); if(!b) return;
+  active = +b.dataset.i; loadGroupToForm(); render();
+});
+$('addGroup').onclick = () => {
+  // new size starts as a copy of the current one's size and style, with an empty list to type into
+  groups.push({...groups[active], mode:'list', list:''});
+  active = groups.length-1; loadGroupToForm(); render();
+  $('w').focus(); $('w').select();
+};
+$('delGroup').onclick = () => {
+  if(groups.length < 2) return;
+  if(textsOf(groups[active]).length && !confirm(`Remove size ${letter(active)} and its labels?`)) return;
+  groups.splice(active, 1); active = Math.min(active, groups.length-1); loadGroupToForm(); render();
+};
+const move = d => { const j = active + d; if(j<0 || j>=groups.length) return; [groups[active], groups[j]] = [groups[j], groups[active]]; active = j; loadGroupToForm(); render(); };
+$('moveUp').onclick = () => move(-1);
+$('moveDown').onclick = () => move(1);
+/* ---------- zoom & pan ---------- */
+const ws = document.querySelector('.workspace');
+// Zoom only resizes the existing page SVGs (they scale via viewBox), so it stays smooth with many pages.
+// (cx, cy) is a screen point that stays fixed while zooming — the cursor for wheel zoom.
+function setZoom(z, cx, cy){
+  z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  const svgs = [...$('pages').querySelectorAll('svg')];
+  if(cx === undefined){ const r = ws.getBoundingClientRect(); cx = r.left + r.width/2; cy = r.top + r.height/2; }
+  // remember which page point is under (cx, cy)
+  const target = svgs.find(sv => { const r = sv.getBoundingClientRect(); return cy >= r.top && cy <= r.bottom; }) || svgs[0];
+  let fx = 0, fy = 0;
+  if(target){ const r = target.getBoundingClientRect(); fx = (cx - r.left)/r.width; fy = (cy - r.top)/r.height; }
+  zoom = z;
+  svgs.forEach(sv => { sv.setAttribute('width', PAGE_W*PX_PER_MM*zoom); sv.setAttribute('height', PAGE_H*PX_PER_MM*zoom); });
+  $('zVal').textContent = Math.round(zoom*100) + '%';
+  if(target){ const r = target.getBoundingClientRect(); ws.scrollLeft += r.left + fx*r.width - cx; ws.scrollTop += r.top + fy*r.height - cy; }
+}
+function fitZoom(){
+  const avail = ws.clientWidth - 52;                          // workspace padding
+  setZoom(avail / (PAGE_W*PX_PER_MM));
+  ws.scrollTo(0, 0);
+}
+$('zIn').onclick = () => setZoom(zoom*1.2);
+$('zOut').onclick = () => setZoom(zoom/1.2);
+$('zReset').onclick = fitZoom;
+$('zVal').ondblclick = fitZoom;
+ws.addEventListener('wheel', e => {
+  if(!e.ctrlKey || !e.target.closest('#pages')) return;      // plain wheel scrolls as usual; Ctrl+wheel zooms
+  e.preventDefault();                                          // stop the browser zooming the whole page
+  const dy = e.deltaMode === 1 ? e.deltaY*33 : e.deltaY;       // lines → pixels
+  setZoom(zoom * Math.exp(-dy * 0.0015), e.clientX, e.clientY);
+}, {passive:false});
+// drag the sheet to move around
+$('pages').addEventListener('pointerdown', e => {
+  if(e.button !== 0) return;
+  const x0 = e.clientX, y0 = e.clientY, sl = ws.scrollLeft, st = ws.scrollTop, el = $('pages');
+  el.setPointerCapture(e.pointerId); el.classList.add('panning');
+  const move = ev => { ws.scrollLeft = sl - (ev.clientX - x0); ws.scrollTop = st - (ev.clientY - y0); };
+  const up = () => { el.classList.remove('panning'); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+  el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+});
+$('saveDefault').onclick = () => {
+  if(setJson(DEFAULT_KEY, readSettings())){ updateDefaultNote(); $('defaultNote').innerHTML = '✔ Saved as default. ' + $('defaultNote').innerHTML; }
+  else $('defaultNote').innerHTML = '<span class="warn">This browser is blocking storage, so the default could not be saved. Open index.html directly in Chrome/Edge.</span>';
+};
+$('reset').onclick = () => { apply(getJson(DEFAULT_KEY) || FACTORY); render(); };
+$('defaultNote').addEventListener('click', e => {
+  if(e.target.id !== 'factory' || !confirm('Forget your saved default and go back to factory settings?')) return;
+  setJson(DEFAULT_KEY, null); apply(FACTORY); updateDefaultNote(); render();
+});
+/* ---------- project files (editable, unlike the PDF) ----------
+   A project is a small JSON file holding every size, text, colour and setting.
+   Chrome/Edge: the first save asks where; later saves write to the same file.
+   Other browsers: each save downloads a copy. */
+const PROJECT_APP = 'a4-label-generator';
+const FILE_TYPES = [{description:'Label project', accept:{'application/json':['.json']}}];
+let fileHandle = null, fileName = '', savedJson = null;
+const stateJson = () => JSON.stringify({...readSettings(), active:0});   // switching tabs isn't a change
+function suggestName(){
+  const first = groups.map(textsOf).flat()[0];
+  return (first ? first.replace(/[^\w.-]+/g,'_') : 'labels') + '.labels.json';
+}
+function updateProjectNote(){
+  if(!fileName){ $('projectNote').textContent = 'Not saved as a project file yet.'; return; }
+  const dirty = stateJson() !== savedJson;
+  $('projectNote').innerHTML = `Project: <b>${esc(fileName)}</b> — ${dirty ? '<span class="warn">unsaved changes</span>' : 'saved ✔'}`
+    + (window.showSaveFilePicker ? ` · <button class="linkbtn" id="saveAs">Save as new file</button>` : '');
+}
+async function saveProject(asNew){
+  const data = {app:PROJECT_APP, version:3, savedAt:new Date().toISOString(), settings:readSettings()};
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  try{
+    if(window.showSaveFilePicker){
+      if(!fileHandle || asNew) fileHandle = await showSaveFilePicker({suggestedName: fileName || suggestName(), types: FILE_TYPES});
+      const w = await fileHandle.createWritable(); await w.write(blob); await w.close();
+      fileName = fileHandle.name;
+    } else {
+      fileName = fileName || suggestName();
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileName;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+    }
+    savedJson = stateJson(); updateProjectNote();
+  }catch(e){ if(e.name !== 'AbortError') alert('Could not save the project: ' + e.message); }
+}
+function pickFile(){        // fallback when the browser has no file picker API
+  return new Promise(res => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.onchange = () => res(inp.files[0] || null); inp.click();
+  });
+}
+async function openProject(){
+  if(fileName && stateJson() !== savedJson && !confirm('The current project has unsaved changes. Open another one anyway?')) return;
+  try{
+    let file, handle = null;
+    if(window.showOpenFilePicker){ [handle] = await showOpenFilePicker({types: FILE_TYPES}); file = await handle.getFile(); }
+    else { file = await pickFile(); if(!file) return; }
+    const data = JSON.parse(await file.text());
+    const s = data.settings && data.settings.groups ? data.settings : data;     // project file, or bare settings
+    if(!s || !(s.groups || s.w)) throw new Error('this is not a label project file.');
+    apply(upgrade(s));
+    fileHandle = handle; fileName = file.name;
+    render(); savedJson = stateJson(); updateProjectNote();
+  }catch(e){ if(e.name !== 'AbortError') alert('Could not open the project: ' + e.message); }
+}
+function newProject(){
+  const dirty = fileName ? stateJson() !== savedJson : groups.some(g => textsOf(g).length);
+  if(dirty && !confirm('Start a new project? Unsaved changes to the current labels will be lost.')) return;
+  apply(getJson(DEFAULT_KEY) || FACTORY);        // your saved default (sizes, colours, border…), or factory settings
+  groups.forEach(g => { g.list = ''; g.mode = 'list'; });   // …but no labels yet
+  groups.length = 1; active = 0; loadGroupToForm();
+  fileHandle = null; fileName = ''; savedJson = null;
+  render(); $('list').focus();
+}
+$('newProj').onclick = newProject;
+$('saveProj').onclick = () => saveProject(false);
+$('openProj').onclick = openProject;
+$('projectNote').addEventListener('click', e => { if(e.target.id === 'saveAs') saveProject(true); });
+document.addEventListener('keydown', e => {
+  if(!(e.ctrlKey || e.metaKey)) return;
+  const k = e.key.toLowerCase();
+  if(k === 's'){ e.preventDefault(); saveProject(e.shiftKey); }      // Ctrl+Shift+S = save as new file
+  if(k === 'o'){ e.preventDefault(); openProject(); }
+});
+
+$('pdf').onclick = savePdf;
+$('print').onclick = () => window.print();
+window.addEventListener('beforeprint', () => { const L = layout(); $('print').innerHTML = L.pages.map(p => pageSvg(pageShapes(p, L.gap), true)).join(''); });
+window.addEventListener('afterprint', () => { $('print').innerHTML = ''; });
+
+// saved default from the single-size version carries over once
+// open with: last session → saved default → factory
+apply(upgrade(getJson(KEY)) || getJson(DEFAULT_KEY) || FACTORY);
+updateDefaultNote(); render();
+</script>
+</body>
+</html>
